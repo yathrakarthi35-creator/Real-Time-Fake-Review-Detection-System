@@ -1,116 +1,91 @@
-# Real-Time Fake Review Detection System
+# TrustGuard AI — Real-Time Fake Review Detection System
 
-A production-ready full-stack AI web application engineered for **Vercel Free Tier** (staying well under the 250 MB serverless bundle limit and executing inference in `< 100 ms`), with a **pre-trained ML model (`api/model.json.gz`) already included** so you can push to GitHub and deploy immediately.
+A full-stack **Real-Time Fake Review Detection & Fraud Ops Platform** engineered for both local real-time SSE streaming and **Vercel Free Tier** serverless deployment (`< 50 MB` Python footprint, `< 15 ms` inference latency).
 
 ## Architecture Overview
 
-- **Frontend:** Next.js 14 (App Router), React 18, TypeScript, Tailwind CSS (Dark/Light mode), Lucide Icons, and Recharts.
-- **Backend / ML Engine:** Python FastAPI running as Vercel Serverless Functions (`/api/index.py`), powered by a pre-trained **TF-IDF (1,200 unigrams/bigrams) + 12 Behavioral Features Logistic Regression** model (`api/model.json.gz`, ~11 KB), plus optional `train_model.py` (Scikit-learn `api/model.joblib`) if you want to retrain on custom datasets.
-- **Storage:** Browser `localStorage` + in-memory session state for instant zero-config analytics on Vercel, with optional `.env.example` hooks for Vercel Postgres / Supabase.
+- **Frontend (Next.js 14 App Router, TypeScript, Tailwind CSS, Recharts, Lucide):**
+  - **Command Overview:** Live KPI telemetry, rolling ingestion timeline (`AreaChart`), verdict split (`PieChart`), star-rating distribution (`BarChart`), and a **Product Trust & Rating Distortion Leaderboard** comparing raw vs. Trust-Adjusted star ratings.
+  - **Live Forensic Inspector:** Inspect review text, reviewer account age, review count, star rating, and verified purchase status with live-debounce analysis, inline trigger-word highlights, red/green flags, and automated triage (`APPROVED`, `FLAGGED_FOR_REVIEW`, `AUTO_QUARANTINED`).
+  - **Real-Time SSE Stream & Webhook Ingest (`GET /api/stream/events`, `POST /api/ingest`):** Server-Sent Events push incoming reviews, coordinated burst alerts, and moderation overrides live to connected clients, with an interactive traffic simulator (`Normal`, `5-Star Bot Burst`, `Subtle AI Astroturfing`, `1-Star Competitor Sabotage`, `Duplicate Botnet`) and Webhook Playground.
+  - **Batch CSV / JSON Scanner (`POST /api/batch-predict`):** Upload or paste up to 200 reviews for bulk auditing with within-batch near-duplicate detection and downloadable CSV audit reports.
+  - **Moderation & Quarantine Queue:** Searchable queue with a native `<dialog>` forensic inspection modal and analyst verdict overrides (`POST /api/moderation/{id}`).
+- **Backend / ML Engine (FastAPI + Scikit-learn / Zero-Dep NumPy):**
+  - `api/features.py`: Shared 16-feature behavioral & linguistic extractor (sentiment polarity/subjectivity, punctuation & caps ratios, rating extremity, rating-tone mismatch, hype phrase density, AI/template astroturfing score, concrete specificity, first-person grounding, lexical diversity, and account risk) plus 3-gram Jaccard near-duplicate shingles.
+  - `api/stream_engine.py`: Thread-safe sliding-window duplicate/burst detector and SSE pub/sub event bus.
+  - `train_model.py`: Trains on 6,000 multi-archetype reviews and exports both `api/model.joblib` (Scikit-learn Pipeline) and `api/model.json.gz` (~21 KB zero-sklearn artifact for Vercel).
 
 ## Project Structure
 
 ```text
-fake-review-detector/
 ├── api/
-│   ├── __init__.py          # Python package marker
-│   ├── features.py          # Shared NLP + 12 behavioral features & explainability engine
-│   ├── index.py             # FastAPI serverless app (/api/health, /api/predict, /api/sample-stream)
-│   └── model.json.gz        # Pre-trained TF-IDF + Behavioral Logistic Regression model (ready for Vercel)
+│   ├── __init__.py
+│   ├── features.py          # Shared 16-feature NLP + behavioral & explainability engine
+│   ├── stream_engine.py     # Sliding-window duplicate/burst detector + SSE event bus
+│   ├── index.py             # FastAPI backend (/api/health, /api/predict, /api/ingest, /api/stream/events, ...)
+│   ├── model.json.gz        # Pre-trained lightweight TF-IDF + Behavioral Logistic Regression
+│   └── model.joblib         # Scikit-learn Pipeline artifact
 ├── app/
-│   ├── globals.css          # Tailwind base styles + dark/light theme support
+│   ├── globals.css          # Tailwind base styles, focus rings, content-visibility containment
 │   ├── layout.tsx           # Root Next.js App Router layout
-│   └── page.tsx             # Main dashboard orchestrating Analyzer, Stream, and Charts
+│   └── page.tsx             # Command Center workspace with live SSE subscription
 ├── components/
-│   ├── AnalyticsDashboard.tsx   # KPI cards + Recharts Pie & Star-Rating Bar charts
-│   ├── Header.tsx               # Branding, API health badge, reset button, theme toggle
-│   ├── LiveStreamSimulator.tsx  # 2-second live review stream + automatic fake burst alerts
-│   └── ReviewAnalyzer.tsx       # Debounced analyzer, trigger highlights, red/green flags
+│   ├── AnalyticsDashboard.tsx
+│   ├── BatchScanner.tsx
+│   ├── Header.tsx
+│   ├── LiveStreamMonitor.tsx
+│   ├── ModerationQueue.tsx
+│   ├── ReviewAnalyzer.tsx
+│   └── ReviewDetailDialog.tsx
 ├── lib/
-│   └── types.ts             # Shared TypeScript interfaces & localStorage helpers
-├── .env.example             # Optional DB/Supabase hooks
-├── .gitignore               # Preserves api/model.json.gz & api/model.joblib for Vercel deployment
-├── next.config.mjs          # Proxies /api/* to localhost:8000 during local dev
-├── package.json             # Next.js 14, Tailwind, Lucide, Recharts
-├── postcss.config.mjs       # PostCSS config
-├── requirements.txt         # Lightweight Python deps (< 50 MB on Vercel)
-├── tailwind.config.ts       # Tailwind darkMode: "class" config
-├── train_model.py           # Optional Scikit-learn trainer to retrain & export api/model.joblib
-├── tsconfig.json            # TypeScript configuration
-└── vercel.json              # Routes /api/* -> /api/index.py and everything else -> Next.js
+│   └── types.ts
+├── tests/
+│   └── test_api.py
+├── train_model.py
+├── requirements.txt
+├── next.config.mjs
+└── vercel.json
 ```
 
----
+## Running Locally (Windows PowerShell)
 
-## Step-by-Step Windows PowerShell Guide
-
-### 1. Prerequisites
-Ensure you have **Python 3.10+**, **Node.js 18+**, and **Git** installed on Windows:
-
-```powershell
-python --version
-node --version
-git --version
-```
-
-### 2. Extract & Enter the Project Directory
-
-```powershell
-cd path\to\real-time-fake-review-detector
-```
-
-### 3. Install Python & Node Dependencies
+### 1. Install Dependencies
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install --upgrade pip
 pip install -r requirements.txt
 npm install
 ```
 
-*(Optional)* If you want to retrain with Scikit-learn and overwrite with `api\model.joblib`:
+*(Optional)* Retrain the ML artifacts:
 ```powershell
 python train_model.py
 ```
 
-### 4. Run Locally (Two PowerShell Windows)
+### 2. Start Backend & Frontend
 
-**Terminal 1 — Python FastAPI Backend (Port 8000):**
+**Single Command (Recommended — starts FastAPI on 8000 + Next.js on 3000):**
 ```powershell
-cd path\to\real-time-fake-review-detector
-.\.venv\Scripts\Activate.ps1
-uvicorn api.index:app --reload --host 127.0.0.1 --port 8000
+npm run dev:full
+```
+
+Or run in two separate PowerShell windows:
+
+**Terminal 1 — FastAPI Real-Time SSE Backend (Port 8000):**
+```powershell
+.\.venv\Scripts\uvicorn.exe api.index:app --reload --host 127.0.0.1 --port 8000
 ```
 
 **Terminal 2 — Next.js Frontend (Port 3000):**
 ```powershell
-cd path\to\real-time-fake-review-detector
 npm run dev
 ```
 
-Open **http://localhost:3000** in your browser. Quick API sanity check in PowerShell:
-```powershell
-Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/health" -Method Get
-```
+Open **http://localhost:3000** in your browser.
 
-### 5. Push to GitHub
-
-Create a new empty repository on GitHub (e.g., `real-time-fake-review-detector`), then run:
+### 3. Send a Real-Time Webhook Event from PowerShell
 
 ```powershell
-git init
-git add .
-git commit -m "Initial commit: Real-Time Fake Review Detection System with pre-trained ML model"
-git branch -M main
-git remote add origin https://github.com/<YOUR_GITHUB_USERNAME>/real-time-fake-review-detector.git
-git push -u origin main
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/ingest" -Method Post -ContentType "application/json" -Body '{"product_name":"AeroPods Pro ANC Earbuds","reviewer":"LiveWebhook","rating":5,"verified_purchase":false,"text":"BEST EARBUDS EVER!!! 100% RECOMMEND!!"}'
 ```
-
-### 6. Deploy Live on Vercel (Free Tier)
-
-1. Go to **https://vercel.com/new** and sign in with GitHub.
-2. Click **Import** next to `real-time-fake-review-detector`.
-3. Keep the default **Framework Preset: Next.js** and Root Directory `./`.
-4. Click **Deploy** (no environment variables required).
-5. Once live, verify `https://<your-vercel-url>/api/health` returns `"model_loaded": true`.

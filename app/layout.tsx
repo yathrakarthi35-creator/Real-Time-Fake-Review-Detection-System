@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Real-Time Fake Review Detection System",
+  title: "TrustGuard AI | Real-Time Fake Review Detection System",
   description:
-    "Production-ready real-time fake review detector powered by FastAPI, Scikit-learn TF-IDF + Behavioral Feature Engineering, and Next.js on Vercel.",
+    "Real-time e-commerce review fraud detection platform with SSE streaming, TF-IDF + 16 behavioral NLP signals, near-duplicate botnet detection, and live moderation.",
 };
 
 export default function RootLayout({
